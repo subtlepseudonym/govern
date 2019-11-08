@@ -3,7 +3,6 @@ package govern
 import (
 	"fmt"
 	"path"
-	"reflect"
 	"strings"
 
 	"go/ast"
@@ -54,18 +53,33 @@ func parseFile(file *ast.File) (*Package, error) {
 		}
 	}
 
-	if file.Scope == nil {
-		return nil, fmt.Errorf("package scope is nil")
+	if file.Scope == nil || file.Scope.Objects == nil {
+		return &pkg, fmt.Errorf("package scope is nil")
 	}
 
 	for _, obj := range file.Scope.Objects {
 		switch obj.Kind {
 		case ast.Con:
-			pkg.Constants = append(pkg.Constants, parseField(obj))
+			field, err := parseField(obj)
+			if err != nil {
+				// FIXME: do something with this error that doesn't exit parsing
+				return &pkg, fmt.Errorf("parse field: %w", err)
+			}
+			pkg.Constants = append(pkg.Constants, *field)
 		case ast.Var:
-			pkg.Variables = append(pkg.Variables, parseField(obj))
+			field, err := parseField(obj)
+			if err != nil {
+				// FIXME: do something with this error that doesn't exit parsing
+				return &pkg, fmt.Errorf("parse field: %w", err)
+			}
+			pkg.Variables = append(pkg.Variables, *field)
 		case ast.Typ:
-			s, i := parseType(obj)
+			s, i, err := parseType(obj)
+			if err != nil {
+				// FIXME: don't exit parsing
+				return &pkg, fmt.Errorf("parse type: %w", err)
+			}
+
 			if s != nil {
 				pkg.Structs = append(pkg.Structs, *s)
 			}
@@ -73,7 +87,20 @@ func parseFile(file *ast.File) (*Package, error) {
 				pkg.Interfaces = append(pkg.Interfaces, *i)
 			}
 		case ast.Fun:
-			pkg.Functions = append(pkg.Functions, parseFunction(obj))
+			if obj.Decl == nil {
+				return &pkg, fmt.Errorf("type object declaration is nil")
+			}
+
+			funcDecl, ok := obj.Decl.(*ast.FuncDecl)
+			if !ok {
+				return &pkg, fmt.Errorf("type object declaration is not FuncDecl")
+			}
+
+			function, err := parseFunction(funcDecl)
+			if err != nil {
+				return &pkg, fmt.Errorf("parse function: %w", err)
+			}
+			pkg.Functions = append(pkg.Functions, function)
 		default:
 			continue
 		}
@@ -82,27 +109,43 @@ func parseFile(file *ast.File) (*Package, error) {
 	return &pkg, nil
 }
 
-func parseField(obj *ast.Object) Field {
-	f := Field{
+func parseField(obj *ast.Object) (*Field, error) {
+	if obj == nil {
+		return nil, fmt.Errorf("field object is nil")
+	}
+
+	field := &Field{
 		Name:     obj.Name,
 		Exported: token.IsExported(obj.Name),
 	}
 
+	if obj.Decl == nil {
+		return field, nil // TODO: is there actually a case where field is typeless?
+	}
+
 	if val, ok := obj.Decl.(*ast.ValueSpec); ok {
-		if len(val.Values) != 0 {
-			if lit, ok := val.Values[0].(*ast.BasicLit); ok {
-				f.Type = strings.ToLower(lit.Kind.String())
+		if len(val.Values) > 0 {
+			if lit, ok := val.Values[0].(*ast.BasicLit); ok && lit != nil {
+				field.Type = strings.ToLower(lit.Kind.String())
 			}
 		}
 	}
 
-	return f
+	return field, nil
 }
 
-func parseType(obj *ast.Object) (*Struct, *Interface) {
+func parseType(obj *ast.Object) (*Struct, *Interface, error) {
+	if obj == nil {
+		return nil, nil, fmt.Errorf("type object is nil")
+	}
+
 	typ, ok := obj.Decl.(*ast.TypeSpec)
 	if !ok {
-		return nil, nil
+		return nil, nil, fmt.Errorf("type object is not TypeSpec")
+	}
+	if typ == nil {
+		// TODO: does this actually happen?
+		return nil, nil, fmt.Errorf("type object declaration is nil")
 	}
 
 	var s *Struct
@@ -118,15 +161,21 @@ func parseType(obj *ast.Object) (*Struct, *Interface) {
 		if val.Fields == nil {
 			break
 		}
+
 		for _, f := range val.Fields.List {
+			if f == nil {
+				continue
+			}
+
 			var field Field
-			if len(f.Names) != 0 && f.Names[0] != nil {
+			if len(f.Names) > 0 && f.Names[0] != nil {
 				field.Name = f.Names[0].Name
 				field.Exported = token.IsExported(f.Names[0].Name)
 			}
 			if ident, ok := f.Type.(*ast.Ident); ok && ident != nil {
 				field.Type = ident.Name
 			}
+			// TODO: should keep track of tags too
 
 			s.Fields = append(s.Fields, field)
 		}
@@ -135,58 +184,75 @@ func parseType(obj *ast.Object) (*Struct, *Interface) {
 			Name:     obj.Name,
 			Exported: token.IsExported(obj.Name),
 		}
-	default:
-		fmt.Println(reflect.TypeOf(obj.Decl))
+
+		if val.Methods == nil {
+			break
+		}
+
+		for _, method := range val.Methods.List {
+			if method == nil {
+				continue
+			}
+
+			funcDecl := &ast.FuncDecl{
+				Name: method.Names[0],
+			}
+			if fn, ok := method.Type.(*ast.FuncType); ok {
+				funcDecl.Type = fn
+			}
+
+			function, err := parseFunction(funcDecl)
+			if err != nil {
+				return nil, i, fmt.Errorf("parse function: %w", err)
+			}
+
+			i.Methods = append(i.Methods, function)
+		}
 	}
 
-	return s, i
+	return s, i, nil
 }
 
-func parseFunction(obj *ast.Object) Function {
-	fn, ok := obj.Decl.(*ast.FuncDecl)
-	if !ok {
-		fmt.Println(reflect.TypeOf(obj.Decl))
-	}
-
+func parseFunction(funcDecl *ast.FuncDecl) (Function, error) {
 	var function Function
-	if fn.Name != nil {
-		function.Name = fn.Name.Name
-		function.Exported = token.IsExported(fn.Name.Name)
+	if funcDecl.Name != nil {
+		function.Name = funcDecl.Name.Name
+		function.Exported = token.IsExported(funcDecl.Name.Name)
 	}
 
-	if fn.Type == nil || fn.Type.Params == nil {
-		return function
+	if funcDecl.Type == nil {
+		return function, fmt.Errorf("function declaration type is nil")
 	}
 
-	for _, arg := range fn.Type.Params.List {
-		var field Field
-		if len(arg.Names) != 0 && arg.Names[0] != nil {
-			field.Name = arg.Names[0].Name
-			field.Exported = token.IsExported(arg.Names[0].Name)
+	if funcDecl.Type.Params != nil {
+		for _, arg := range funcDecl.Type.Params.List {
+			var field Field
+			if len(arg.Names) != 0 && arg.Names[0] != nil {
+				field.Name = arg.Names[0].Name
+				field.Exported = token.IsExported(arg.Names[0].Name)
+			}
+			if ident, ok := arg.Type.(*ast.Ident); ok && ident != nil {
+				field.Type = ident.Name
+			}
+
+			function.Arguments = append(function.Arguments, field)
 		}
-		if ident, ok := arg.Type.(*ast.Ident); ok && ident != nil {
-			field.Type = ident.Name
-		}
-
-		function.Arguments = append(function.Arguments, field)
 	}
 
-	if fn.Type.Results == nil {
-		return function
+	if funcDecl.Type.Results != nil {
+		for _, arg := range funcDecl.Type.Results.List {
+			var field Field
+			if len(arg.Names) != 0 && arg.Names[0] != nil {
+				field.Name = arg.Names[0].Name
+				field.Exported = token.IsExported(arg.Names[0].Name)
+			}
+			if ident, ok := arg.Type.(*ast.Ident); ok && ident != nil {
+				field.Type = ident.Name
+			}
+
+			function.Results = append(function.Results, field)
+		}
 	}
 
-	for _, arg := range fn.Type.Results.List {
-		var field Field
-		if len(arg.Names) != 0 && arg.Names[0] != nil {
-			field.Name = arg.Names[0].Name
-			field.Exported = token.IsExported(arg.Names[0].Name)
-		}
-		if ident, ok := arg.Type.(*ast.Ident); ok && ident != nil {
-			field.Type = ident.Name
-		}
-
-		function.Results = append(function.Results, field)
-	}
-
-	return function
+	return function, nil
 }

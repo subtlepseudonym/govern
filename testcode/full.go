@@ -22,6 +22,9 @@ var (
 	ExportedVarInt = 0
 )
 
+// Inline is a wrapper type
+type Inline bool
+
 // Object is for testing struct parsing
 type Object struct {
 	Internal string

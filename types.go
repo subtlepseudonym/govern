@@ -15,7 +15,7 @@ func (p *Package) GetName() string {
 }
 
 type Import struct {
-	Path string `json:"path"`
+	Path       string `json:"path"`
 	ImportedAs string `json:"importedAs"`
 }
 
