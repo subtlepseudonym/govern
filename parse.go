@@ -1,190 +1,51 @@
-package main
+package govern
 
 import (
-	"encoding/json"
-	"reflect"
 	"fmt"
+	"reflect"
+	"strings"
+
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"strings"
 )
 
-type Package struct {
-	Name string
-	Constants []Field
-	Variables []Field
-	Structs []Struct
-	Interfaces []Interface
-	Functions []Function
-}
-
-func (p *Package) GetName() string {
-	return p.Name
-}
-
-type Field struct {
-	Name string
-	Type string
-	Exported bool
-}
-
-func (f Field) GetName() string {
-	return f.Name
-}
-
-func (f Field) IsExported() bool {
-	return f.Exported
-}
-
-type Struct struct {
-	Name string
-	Fields []Field
-	Exported bool
-}
-
-func (s Struct) GetName() string {
-	return s.Name
-}
-
-func (s Struct) IsExported() bool {
-	return s.Exported
-}
-
-type Interface struct {
-	Name string
-	Methods []Function
-	Exported bool
-}
-
-func (i Interface) GetName() string {
-	return i.Name
-}
-
-func (i Interface) IsExported() bool {
-	return i.Exported
-}
-
-type Function struct {
-	Name string
-	Arguments []Field
-	Results []Field
-	Exported bool
-}
-
-func (f Function) GetName() string {
-	return f.Name
-}
-
-func (f Function) IsExported() bool {
-	return f.Exported
-}
-
-type Named interface {
-	GetName() string
-}
-
-func GetName(obj Named) string {
-	return obj.GetName()
-}
-
-type Exported interface {
-	IsExported() bool
-}
-
-func main() {
+func ParseFile(filename string) (*Package, error) {
 	fset := token.NewFileSet()
-	src := `package test
-
-import (
-	"fmt"
-)
-
-const (
-	unexportedConstantString = "cool"
-	ExportedConstantString = "neat"
-	unexportedConstantInt = 1
-	ExportedConstantInt = 0
-)
-
-var (
-	unexportedVarString = "cool"
-	ExportedVarString = "neat"
-	unexportedVarInt = 1
-	ExportedVarInt = 0
-)
-
-// Object is for testing struct parsing
-type Object struct {
-	Internal string
-	unexport string
-}
-
-// Print is defined on Object
-func (o Object) Print(s string) {
-	fmt.Println(s)
-}
-
-// Inter is for testing interface parsing
-type Inter interface {
-	Print(string)
-	Break(string)
-}
-
-func main() {
-	t := Object{
-		Internal: "test",
-		unexport: "neat",
-	}
-	t.Print(t.Internal)
-
-	i, err := testFunc(t.Internal)
+	astFile, err := parser.ParseFile(fset, filename, nil, parser.Mode(0))
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
-	fmt.Println(i)
+
+	return parseFile(astFile)
 }
 
-func testFunc(stringArg string) (int, error) {
-	return 0, nil
-}
-`
-
-	f, err := parser.ParseFile(fset, "", src, parser.Mode(0))
-	if err != nil {
-		panic(err)
+func parseFile(file *ast.File) (*Package, error) {
+	if file == nil {
+		return nil, fmt.Errorf("syntax tree file is nil")
 	}
 
-	pkg, err := parseFile(f)
-	if err != nil {
-		panic(err)
+	var pkg Package
+	if file.Name != nil {
+		pkg.Name = file.Name.Name
 	}
 
-	b, err := json.MarshalIndent(pkg, "", "  ")
-	if err != nil {
-		panic(err)
-	}
-	fmt.Println(string(b))
-}
+	if len(file.Imports) > 0 {
+		for _, imp := range file.Imports {
+			if imp == nil || imp.Path == nil {
+				continue
+			}
 
-func parseFile(obj *ast.File) (*Package, error) {
-	if obj == nil {
-		return nil, fmt.Errorf("file pointer is nil")
-	}
-
-	if obj.Name == nil {
-		return nil, fmt.Errorf("file package name is nil")
+			trimmedDep := strings.Trim(imp.Path.Value, `"`)
+			pkg.Dependencies = append(pkg.Dependencies, trimmedDep)
+		}
 	}
 
-	if obj.Scope == nil {
+	if file.Scope == nil {
 		return nil, fmt.Errorf("package scope is nil")
 	}
 
-	pkg := &Package{
-		Name: obj.Name.Name,
-	}
-
-	for _, obj := range obj.Scope.Objects {
+	for _, obj := range file.Scope.Objects {
 		switch obj.Kind {
 		case ast.Con:
 			pkg.Constants = append(pkg.Constants, parseField(obj))
@@ -205,12 +66,12 @@ func parseFile(obj *ast.File) (*Package, error) {
 		}
 	}
 
-	return pkg, nil
+	return &pkg, nil
 }
 
 func parseField(obj *ast.Object) Field {
 	f := Field{
-		Name: obj.Name,
+		Name:     obj.Name,
 		Exported: token.IsExported(obj.Name),
 	}
 
@@ -237,7 +98,7 @@ func parseType(obj *ast.Object) (*Struct, *Interface) {
 	switch val := typ.Type.(type) {
 	case *ast.StructType:
 		s = &Struct{
-			Name: obj.Name,
+			Name:     obj.Name,
 			Exported: token.IsExported(obj.Name),
 		}
 
@@ -258,7 +119,7 @@ func parseType(obj *ast.Object) (*Struct, *Interface) {
 		}
 	case *ast.InterfaceType:
 		i = &Interface{
-			Name: obj.Name,
+			Name:     obj.Name,
 			Exported: token.IsExported(obj.Name),
 		}
 	default:
