@@ -2,7 +2,7 @@ package govern
 
 type Package struct {
 	Name         string      `json:"name"`
-	Dependencies []string    `json:"dependencies"`
+	Dependencies []Import    `json:"dependencies"`
 	Constants    []Field     `json:"constants"`
 	Variables    []Field     `json:"variables"`
 	Structs      []Struct    `json:"structs"`
@@ -12,6 +12,11 @@ type Package struct {
 
 func (p *Package) GetName() string {
 	return p.Name
+}
+
+type Import struct {
+	Path string `json:"path"`
+	ImportedAs string `json:"importedAs"`
 }
 
 type Field struct {

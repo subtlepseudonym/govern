@@ -2,6 +2,7 @@ package govern
 
 import (
 	"fmt"
+	"path"
 	"reflect"
 	"strings"
 
@@ -30,6 +31,7 @@ func parseFile(file *ast.File) (*Package, error) {
 		pkg.Name = file.Name.Name
 	}
 
+	// Parse package imports
 	if len(file.Imports) > 0 {
 		for _, imp := range file.Imports {
 			if imp == nil || imp.Path == nil {
@@ -37,7 +39,18 @@ func parseFile(file *ast.File) (*Package, error) {
 			}
 
 			trimmedDep := strings.Trim(imp.Path.Value, `"`)
-			pkg.Dependencies = append(pkg.Dependencies, trimmedDep)
+			dep := Import{
+				Path: trimmedDep,
+			}
+
+			if imp.Name != nil {
+				dep.ImportedAs = imp.Name.Name
+			} else {
+				// FIXME: should get correct package name rather than path base
+				// this can be (hopefully) grabbed from $GOPATH/bin
+				dep.ImportedAs = path.Base(trimmedDep)
+			}
+			pkg.Dependencies = append(pkg.Dependencies, dep)
 		}
 	}
 
