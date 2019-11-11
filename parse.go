@@ -8,6 +8,8 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+
+	"github.com/subtlepseudonym/govern/multierror"
 )
 
 func ParseFile(filename string) (*Package, error) {
@@ -57,27 +59,34 @@ func parseFile(file *ast.File) (*Package, error) {
 		return &pkg, fmt.Errorf("package scope is nil")
 	}
 
-	for _, obj := range file.Scope.Objects {
+	var errs multierror.MultiError
+
+	for name, obj := range file.Scope.Objects {
+		if obj == nil {
+			errs = append(errs, fmt.Errorf("object %q is nil", name))
+			continue
+		}
+
 		switch obj.Kind {
 		case ast.Con:
 			field, err := parseField(obj)
 			if err != nil {
-				// FIXME: do something with this error that doesn't exit parsing
-				return &pkg, fmt.Errorf("parse field: %w", err)
+				errs = append(errs, fmt.Errorf("parse field %q: %w", name, err))
+				continue
 			}
 			pkg.Constants = append(pkg.Constants, *field)
 		case ast.Var:
 			field, err := parseField(obj)
 			if err != nil {
-				// FIXME: do something with this error that doesn't exit parsing
-				return &pkg, fmt.Errorf("parse field: %w", err)
+				errs = append(errs, fmt.Errorf("parse field %q: %w", name, err))
+				continue
 			}
 			pkg.Variables = append(pkg.Variables, *field)
 		case ast.Typ:
 			s, i, err := parseType(obj)
 			if err != nil {
-				// FIXME: don't exit parsing
-				return &pkg, fmt.Errorf("parse type: %w", err)
+				errs = append(errs, fmt.Errorf("parse type %q: %w", name, err))
+				continue
 			}
 
 			if s != nil {
@@ -88,17 +97,20 @@ func parseFile(file *ast.File) (*Package, error) {
 			}
 		case ast.Fun:
 			if obj.Decl == nil {
-				return &pkg, fmt.Errorf("type object declaration is nil")
+				errs = append(errs, fmt.Errorf("type object declaration %q is nil", name))
+				continue
 			}
 
 			funcDecl, ok := obj.Decl.(*ast.FuncDecl)
 			if !ok {
-				return &pkg, fmt.Errorf("type object declaration is not FuncDecl")
+				errs = append(errs, fmt.Errorf("type object declaration %q is not FuncDecl", name))
+				continue
 			}
 
 			function, err := parseFunction(funcDecl)
 			if err != nil {
-				return &pkg, fmt.Errorf("parse function: %w", err)
+				errs = append(errs, fmt.Errorf("parse function %q: %q", name, err))
+				continue
 			}
 			pkg.Functions = append(pkg.Functions, function)
 		default:
@@ -106,7 +118,7 @@ func parseFile(file *ast.File) (*Package, error) {
 		}
 	}
 
-	return &pkg, nil
+	return &pkg, errs.ErrOrNil()
 }
 
 func parseField(obj *ast.Object) (*Field, error) {
