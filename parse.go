@@ -12,17 +12,33 @@ import (
 	"github.com/subtlepseudonym/govern/multierror"
 )
 
+const (
+	defaultIgnoreUnexported = false
+)
+
+var defaultOptions = Options{
+	IgnoreUnexported: defaultIgnoreUnexported,
+}
+
+type Options struct {
+	IgnoreUnexported bool
+}
+
 func ParseFile(filename string) (*Package, error) {
+	return ParseFileWithOptions(filename, defaultOptions)
+}
+
+func ParseFileWithOptions(filename string, options Options) (*Package, error) {
 	fset := token.NewFileSet()
 	astFile, err := parser.ParseFile(fset, filename, nil, parser.Mode(0))
 	if err != nil {
 		return nil, err
 	}
 
-	return parseFile(astFile)
+	return parseFile(astFile, options)
 }
 
-func parseFile(file *ast.File) (*Package, error) {
+func parseFile(file *ast.File, options Options) (*Package, error) {
 	if file == nil {
 		return nil, fmt.Errorf("syntax tree file is nil")
 	}
@@ -62,6 +78,10 @@ func parseFile(file *ast.File) (*Package, error) {
 	var errs multierror.MultiError
 
 	for name, obj := range file.Scope.Objects {
+		if options.IgnoreUnexported && !token.IsExported(name) {
+			continue
+		}
+
 		if obj == nil {
 			errs = append(errs, fmt.Errorf("object %q is nil", name))
 			continue
