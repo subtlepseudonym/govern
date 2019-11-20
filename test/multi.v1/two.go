@@ -11,6 +11,7 @@ const Int = 0
 
 // Object is for testing struct parsing
 type Object struct {
+	Wrap Wrapper
 	Internal string
 	unexport string
 }
