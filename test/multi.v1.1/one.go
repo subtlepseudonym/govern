@@ -1,18 +1,17 @@
 // +build ignore
 
-package test
+package multi
 
 import (
 	"fmt"
-
-	"github.com/subtlepseudonym/notes"
 )
 
 const (
-	unexportedConstantString = "cool"
-	ExportedConstantString = "neat"
-	unexportedConstantInt = 1
-	ExportedConstantInt = 0
+	AddedInMinor = 6
+	addedInMinor = 5
+
+	RemovedInMajor = "neat"
+	ChangedInMajor = 0
 )
 
 var (
@@ -22,19 +21,8 @@ var (
 	ExportedVarInt = 0
 )
 
-// Inline is a wrapper type
-type Inline bool
-
-// Object is for testing struct parsing
-type Object struct {
-	Internal string
-	unexport string
-}
-
-// Print is defined on Object
-func (o Object) Print(s string) {
-	fmt.Println(s)
-}
+// Wrapper is a wrapper type
+type Wrapper bool
 
 // Inter is for testing interface parsing
 type Inter interface {
@@ -57,8 +45,6 @@ func test() {
 
 	s, b := ExportedFunc(0)
 	fmt.Println(s, b)
-
-	fmt.Println(notes.Note{})
 }
 
 func unexportedFunc(stringArg string) (int, error) {
