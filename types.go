@@ -1,5 +1,9 @@
 package govern
 
+import (
+	"fmt"
+)
+
 type Package struct {
 	Name         string      `json:"name"`
 	Dependencies []Import    `json:"dependencies"`
@@ -8,6 +12,44 @@ type Package struct {
 	Structs      []Struct    `json:"structs"`
 	Interfaces   []Interface `json:"interfaces"`
 	Functions    []Function  `json:"functions"`
+}
+
+func (p *Package) Combine(other *Package) (*Package, error) {
+	if p.Name != other.Name {
+		return nil, fmt.Errorf("package name mismatch: %q != %q", p.Name, other.Name)
+	}
+
+	pkg := &Package{
+		Name: p.Name,
+	}
+
+	pkg.Dependencies = append(pkg.Dependencies, p.Dependencies...)
+	pkg.Dependencies = append(pkg.Dependencies, other.Dependencies...)
+
+	pkg.Constants = append(pkg.Constants, p.Constants...)
+	pkg.Constants = append(pkg.Constants, other.Constants...)
+
+	pkg.Variables = append(pkg.Variables, p.Variables...)
+	pkg.Variables = append(pkg.Variables, other.Variables...)
+
+	pkg.Structs = append(pkg.Structs, p.Structs...)
+	pkg.Structs = append(pkg.Structs, other.Structs...)
+
+	pkg.Interfaces = append(pkg.Interfaces, p.Interfaces...)
+	pkg.Interfaces = append(pkg.Interfaces, other.Interfaces...)
+
+	pkg.Functions = append(pkg.Functions, p.Functions...)
+	pkg.Functions = append(pkg.Functions, other.Functions...)
+
+	return pkg, nil
+}
+
+func (p *Package) Compare(other *Package) (*Package, error) {
+	if p.Name != other.Name {
+		return nil, fmt.Errorf("package name mismatch: %q != %q", p.Name, other.Name)
+	}
+
+	return nil, nil
 }
 
 func (p *Package) GetName() string {
