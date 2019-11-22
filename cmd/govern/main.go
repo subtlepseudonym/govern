@@ -160,7 +160,7 @@ func packageAgnosticIdentical(x, y types.Type, prevPair *interfacePair) (bool, e
 
 	case *types.Slice:
 		if y, ok := y.(*types.Slice); ok {
-			elemIdentical, err :=  packageAgnosticIdentical(x.Elem(), y.Elem(), prevPair)
+			elemIdentical, err := packageAgnosticIdentical(x.Elem(), y.Elem(), prevPair)
 			if err != nil {
 				return elemIdentical, fmt.Errorf("%q.Elem() != %q.Elem(): %w", x, y, err)
 			}
@@ -170,7 +170,7 @@ func packageAgnosticIdentical(x, y types.Type, prevPair *interfacePair) (bool, e
 
 	case *types.Struct:
 		if y, ok := y.(*types.Struct); ok {
-			if x.NumFields() != y.NumFields() {
+			if x.NumFields() == y.NumFields() {
 				for i := 0; i < x.NumFields(); i++ {
 					xField := x.Field(i)
 					yField := y.Field(i)
@@ -192,6 +192,7 @@ func packageAgnosticIdentical(x, y types.Type, prevPair *interfacePair) (bool, e
 					return true, nil
 				}
 			}
+			return false, fmt.Errorf("%q.NumFields() != %q.NumFields", x, y)
 		}
 		return false, fmt.Errorf("%T != *types.Struct", y)
 
@@ -207,7 +208,7 @@ func packageAgnosticIdentical(x, y types.Type, prevPair *interfacePair) (bool, e
 
 	case *types.Tuple:
 		if y, ok := y.(*types.Tuple); ok {
-			if x.Len() != y.Len() {
+			if x.Len() == y.Len() {
 				if x != nil {
 					for i := 0; i < x.Len(); i++ {
 						xField := x.At(i)
@@ -221,6 +222,7 @@ func packageAgnosticIdentical(x, y types.Type, prevPair *interfacePair) (bool, e
 				}
 				return true, nil
 			}
+			return false, fmt.Errorf("%q.Len() != %q.Len()", x, y)
 		}
 		return false, fmt.Errorf("%T != *types.Tuple", y)
 
@@ -348,7 +350,7 @@ func identical(x, y types.Type, prevPair *interfacePair) bool {
 			// If one or both array lengths are unknown (< 0) due to some error,
 			// assume they are the same to avoid spurious follow-on errors.
 			//
-			// https://github.com/golang/go/blob/go1.13.4/src/go/types/object.go#L153
+			// https://github.com/golang/go/blob/go1.13.4/src/go/types/predicates.go#L153
 			return (x.Len() < 0 || y.Len() < 0 || x.Len() == y.Len()) && identical(x.Elem(), y.Elem(), prevPair)
 		}
 
