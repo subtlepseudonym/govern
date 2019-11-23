@@ -7,8 +7,6 @@ import (
 )
 
 const (
-	unexportedConstantInt = 1
-
 	ChangedInMajor_change = 0
 )
 
@@ -26,6 +24,11 @@ type Wrapper bool
 type Inter interface {
 	Print(string)
 	Break(string)
+	Loop() Recurse
+}
+
+type Recurse interface {
+	Loop() Inter
 }
 
 func test() {
