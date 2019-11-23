@@ -34,7 +34,7 @@ func main() {
 		panic(err)
 	}
 
-	major, err := parsePackage(path.Join(testDir, multiMinor))
+	major, err := parsePackage(path.Join(testDir, multiMajor))
 	if err != nil {
 		panic(err)
 	}
