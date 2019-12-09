@@ -8,3 +8,5 @@ test:
 
 format fmt:
 	go fmt -x ./...
+
+.PHONY: run test format fmt
