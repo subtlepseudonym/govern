@@ -36,12 +36,15 @@ func main() {
 		panic(err)
 	}
 
-	majorChange, minorChange := govern.ComparePackages(base, patch)
+	majorChange, minorChange, err := govern.ComparePackages(base, patch)
 	fmt.Printf("base -> patch: %t %t\n", majorChange, minorChange)
+	fmt.Println(err, "\n")
 
-	majorChange, minorChange = govern.ComparePackages(base, minor)
+	majorChange, minorChange, err = govern.ComparePackages(base, minor)
 	fmt.Printf("base -> minor: %t %t\n", majorChange, minorChange)
+	fmt.Println(err, "\n")
 
-	majorChange, minorChange = govern.ComparePackages(base, major)
+	majorChange, minorChange, err = govern.ComparePackages(base, major)
 	fmt.Printf("base -> major: %t %t\n", majorChange, minorChange)
+	fmt.Println(err, "\n")
 }

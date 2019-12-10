@@ -47,13 +47,15 @@ func ParsePackage(dir string) (*types.Package, error) {
 //
 // The assumption here is that the packages are different, so that if both major and
 // minor return false, the difference constitutes a patch change
-func ComparePackages(older, newer *types.Package) (major, minor bool) {
+func ComparePackages(older, newer *types.Package) (major, minor bool, err error) {
 	if older.Name() != newer.Name() {
-		major = true
+		return true, false, MultiError([]error{
+ 			fmt.Errorf("package renamed: %q != %q", older.Name(), newer.Name()),
+ 		})
 	}
 
-	scopeMajor, scopeMinor, _ := compareScopes(older.Scope(), newer.Scope(), false)
-	return major || scopeMajor, scopeMinor
+	scopeMajor, scopeMinor, err := compareScopes(older.Scope(), newer.Scope())
+	return major || scopeMajor, scopeMinor, err
 }
 
 // ExplainPackageChange identifies what has changed in a package that constitutes more
@@ -75,7 +77,7 @@ func ExplainPackageChange(older, newer *types.Package) error {
 	}
 }
 
-func compareScopes(older, newer *types.Scope, explain bool) (major, minor bool, errs MultiError) {
+func compareScopes(older, newer *types.Scope) (major, minor bool, err error) {
 	oldObjs := make(map[string]types.Object, len(older.Names()))
 	for _, name := range older.Names() {
 		oldObjs[name] = older.Lookup(name)
@@ -117,7 +119,7 @@ func compareScopes(older, newer *types.Scope, explain bool) (major, minor bool, 
 		}
 	}
 
-	return major, minor, merr
+	return major, minor, merr.ErrOrNil()
 }
 
 // typePair is copied directly from go/types, except for a minor name change
