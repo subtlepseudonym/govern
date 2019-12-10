@@ -336,11 +336,13 @@ func compareStructs(x, y *types.Struct, prevPair *typePair) (major, minor bool, 
 		}
 	}
 
-	// check for new fields in old struct
-	minor, major, err = compareStructs(y, x, newPair)
-	if err != nil {
-		return major, minor, fmt.Errorf("field added: %w", err)
+	for name := range yFields {
+		_, ok := xFields[name]
+		if !ok {
+			return false, true, fmt.Errorf("field added: %q", name)
+		}
 	}
+
 	return false, false, nil
 }
 
