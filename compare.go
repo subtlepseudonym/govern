@@ -60,7 +60,9 @@ func ComparePackages(older, newer *types.Package) (major, minor bool) {
 // than a patch change
 func ExplainPackageChange(older, newer *types.Package) error {
 	if older.Name() != newer.Name() {
-		return MultiError([]error{fmt.Errorf("package renamed: %q != %q", older.Name(), newer.Name())})
+		return MultiError([]error{
+			fmt.Errorf("package renamed: %q != %q", older.Name(), newer.Name()),
+		})
 	}
 
 	major, minor, err := compareScopes(older.Scope(), newer.Scope(), true)
@@ -94,10 +96,11 @@ func compareScopes(older, newer *types.Scope, explain bool) (major, minor bool, 
 		newObj, exists := newObjs[name]
 		if !exists || !newObj.Exported() {
 			major = true
+			merr = append(merr, fmt.Errorf("%q removed", name))
 		} else {
 			mj, mi, err := compareTypes(oldObj.Type(), newObj.Type(), nil)
 			if err != nil {
-				merr = append(merr, err)
+				merr = append(merr, fmt.Errorf("%q changed: %v", name, err))
 			}
 
 			major = mj || major
@@ -107,10 +110,10 @@ func compareScopes(older, newer *types.Scope, explain bool) (major, minor bool, 
 		delete(newObjs, name)
 	}
 
-	for _, obj := range newObjs {
+	for name, obj := range newObjs {
 		if obj.Exported() {
 			minor = true
-			break
+			merr = append(merr, fmt.Errorf("%q added", name))
 		}
 	}
 
