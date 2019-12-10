@@ -27,10 +27,10 @@ type MultiError []error
 
 func (m MultiError) Error() string {
 	var builder strings.Builder
-	builder.WriteString("multierror:\n")
+	builder.WriteString("multierror:")
 
 	for _, err := range m {
-		fmt.Fprintf(&builder, "  err: %w\n", err)
+		fmt.Fprintf(&builder, "\n  err: %v", err)
 	}
 
 	return builder.String()
