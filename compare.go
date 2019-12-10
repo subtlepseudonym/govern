@@ -50,31 +50,12 @@ func ParsePackage(dir string) (*types.Package, error) {
 func ComparePackages(older, newer *types.Package) (major, minor bool, err error) {
 	if older.Name() != newer.Name() {
 		return true, false, MultiError([]error{
- 			fmt.Errorf("package renamed: %q != %q", older.Name(), newer.Name()),
- 		})
-	}
-
-	scopeMajor, scopeMinor, err := compareScopes(older.Scope(), newer.Scope())
-	return major || scopeMajor, scopeMinor, err
-}
-
-// ExplainPackageChange identifies what has changed in a package that constitutes more
-// than a patch change
-func ExplainPackageChange(older, newer *types.Package) error {
-	if older.Name() != newer.Name() {
-		return MultiError([]error{
 			fmt.Errorf("package renamed: %q != %q", older.Name(), newer.Name()),
 		})
 	}
 
-	major, minor, err := compareScopes(older.Scope(), newer.Scope(), true)
-	if major {
-		return fmt.Errorf("major: %v", err)
-	} else if minor {
-		return fmt.Errorf("minor: %v", err)
-	} else {
-		return fmt.Errorf("patch: %v", err)
-	}
+	scopeMajor, scopeMinor, err := compareScopes(older.Scope(), newer.Scope())
+	return major || scopeMajor, scopeMinor, err
 }
 
 func compareScopes(older, newer *types.Scope) (major, minor bool, err error) {
